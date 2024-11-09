@@ -33,10 +33,15 @@ func RenderFile(filename, text string, options *RenderFileOptions) string {
 		outputLines = append(outputLines, "```"+filename)
 	}
 
-	for i, line := range strings.Split(text, "\n") {
+	lines := strings.Split(text, "\n")
+
+	gutterWidth := len(fmt.Sprint(len(lines))) + 1 // add 1 line for a space before the separator
+
+	for i, line := range lines {
 		if options.ShowLineNumbers {
 			lineNum := i + 1
-			line = fmt.Sprintf("%d %s %s", lineNum, options.GutterSeparator, line)
+			padding := strings.Repeat(" ", gutterWidth-len(fmt.Sprint(lineNum)))
+			line = fmt.Sprintf("%d%s%s %s", lineNum, padding, options.GutterSeparator, line)
 		}
 
 		outputLines = append(outputLines, line)
