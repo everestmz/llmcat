@@ -108,10 +108,12 @@ func RenderFile(filename, text string, options *RenderFileOptions) string {
 type RenderDirectoryOptions struct {
 	FileOptions       *RenderFileOptions `json:"file_options"`
 	IgnoreGlobs       []string           `json:"ignore_globs"`
+	IncludeGlobs      []string           `json:"include_globs"`
 	IncludeExtensions []string           `json:"include_extensions"`
 	ExcludeExtensions []string           `json:"exclude_extensions"`
 
-	compiledGlobs []glob.Glob
+	compiledIgnoreGlobs  []glob.Glob
+	compiledIncludeGlobs []glob.Glob
 }
 
 func (rdo *RenderDirectoryOptions) SetDefaults() error {
@@ -141,7 +143,16 @@ func (rdo *RenderDirectoryOptions) SetDefaults() error {
 			return err
 		}
 
-		rdo.compiledGlobs = append(rdo.compiledGlobs, g)
+		rdo.compiledIgnoreGlobs = append(rdo.compiledIgnoreGlobs, g)
+	}
+
+	for _, includeGlob := range rdo.IncludeGlobs {
+		g, err := glob.Compile(includeGlob)
+		if err != nil {
+			return err
+		}
+
+		rdo.compiledIncludeGlobs = append(rdo.compiledIncludeGlobs, g)
 	}
 
 	return nil
@@ -161,8 +172,21 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 	}
 
 	err = filepath.WalkDir(dirName, func(path string, d fs.DirEntry, err error) error {
-		for _, ignoreGlob := range options.compiledGlobs {
+		for _, ignoreGlob := range options.compiledIgnoreGlobs {
 			if ignoreGlob.Match(path) {
+				return nil
+			}
+		}
+
+		if len(options.compiledIncludeGlobs) > 0 {
+			include := false
+			for _, includeGlob := range options.compiledIncludeGlobs {
+				if includeGlob.Match(path) {
+					include = true
+				}
+			}
+
+			if !include {
 				return nil
 			}
 		}

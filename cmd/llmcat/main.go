@@ -68,7 +68,8 @@ func main() {
 	flags.BoolVar(&options.ShowPageInfo, "show-page-info", true, "show page information in header")
 
 	// Directory flags
-	flags.StringSliceVarP(&dirOptions.IgnoreGlobs, "ignore", "i", []string{"**/.git/**"}, "glob patterns to ignore")
+	flags.StringSliceVar(&dirOptions.IgnoreGlobs, "ignore", []string{"**/.git/**"}, "glob patterns to ignore")
+	flags.StringSliceVar(&dirOptions.IncludeGlobs, "include", nil, "glob patterns to include")
 	flags.StringSliceVar(&dirOptions.ExcludeExtensions, "exclude-ext", nil, "comma-separated list of file extensions to exclude")
 	flags.StringSliceVar(&dirOptions.IncludeExtensions, "ext", nil, "comma-separated list of file extensions to include")
 	// flags.BoolVarP(&dirOptions.ShowTree, "tree", "t", false, "show directory tree")
