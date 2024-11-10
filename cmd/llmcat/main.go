@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/everestmz/llmcat"
 	"github.com/spf13/cobra"
@@ -19,26 +20,34 @@ func main() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
 
-			fileInfo, err := os.Stat(path)
-			if err != nil {
-				return fmt.Errorf("error accessing path: %v", err)
-			}
+			dirOptions.FileOptions = &options
 
-			if fileInfo.IsDir() {
-				dirOptions.FileOptions = &options
-
-				output, err := llmcat.RenderDirectory(path, &dirOptions)
+			if strings.HasSuffix(path, ".git") {
+				output, err := llmcat.RenderGitRepo(path, &dirOptions)
 				if err != nil {
-					return fmt.Errorf("error processing directory: %v", err)
+					return fmt.Errorf("error processing repository: %w", err)
 				}
 				fmt.Println(output)
 			} else {
-				content, err := os.ReadFile(path)
+				fileInfo, err := os.Stat(path)
 				if err != nil {
-					return fmt.Errorf("error reading file: %v", err)
+					return fmt.Errorf("error accessing path: %v", err)
 				}
-				output := llmcat.RenderFile(path, string(content), &options)
-				fmt.Println(output)
+
+				if fileInfo.IsDir() {
+					output, err := llmcat.RenderDirectory(path, &dirOptions)
+					if err != nil {
+						return fmt.Errorf("error processing directory: %v", err)
+					}
+					fmt.Println(output)
+				} else {
+					content, err := os.ReadFile(path)
+					if err != nil {
+						return fmt.Errorf("error reading file: %v", err)
+					}
+					output := llmcat.RenderFile(path, string(content), &options)
+					fmt.Println(output)
+				}
 			}
 
 			return nil
