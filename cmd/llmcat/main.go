@@ -69,7 +69,8 @@ func main() {
 
 	// Directory flags
 	flags.StringSliceVarP(&dirOptions.IgnoreGlobs, "ignore", "i", []string{"**/.git/**"}, "glob patterns to ignore")
-	// flags.StringVarP(&excludeExtsString, "exclude-ext", "e", "", "comma-separated list of file extensions to exclude")
+	flags.StringSliceVar(&dirOptions.ExcludeExtensions, "exclude-ext", nil, "comma-separated list of file extensions to exclude")
+	flags.StringSliceVar(&dirOptions.IncludeExtensions, "ext", nil, "comma-separated list of file extensions to include")
 	// flags.BoolVarP(&dirOptions.ShowTree, "tree", "t", false, "show directory tree")
 
 	if err := rootCmd.Execute(); err != nil {

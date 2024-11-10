@@ -106,8 +106,11 @@ func RenderFile(filename, text string, options *RenderFileOptions) string {
 
 // We should probably allow for glob-based ignores, extension-based ignores, and some other dir-based filters
 type RenderDirectoryOptions struct {
-	FileOptions   *RenderFileOptions `json:"file_options"`
-	IgnoreGlobs   []string           `json:"ignore_globs"`
+	FileOptions       *RenderFileOptions `json:"file_options"`
+	IgnoreGlobs       []string           `json:"ignore_globs"`
+	IncludeExtensions []string           `json:"include_extensions"`
+	ExcludeExtensions []string           `json:"exclude_extensions"`
+
 	compiledGlobs []glob.Glob
 }
 
@@ -115,6 +118,22 @@ func (rdo *RenderDirectoryOptions) SetDefaults() error {
 	rdo.FileOptions.SetDefaults()
 
 	rdo.IgnoreGlobs = append(rdo.IgnoreGlobs, "**/.git/**")
+
+	if rdo.IncludeExtensions != nil && rdo.ExcludeExtensions != nil {
+		return fmt.Errorf("cannot specify extensions to inlcude and exclude")
+	}
+
+	for i := 0; i < len(rdo.IncludeExtensions); i++ {
+		if !strings.HasPrefix(rdo.IncludeExtensions[i], ".") {
+			rdo.IncludeExtensions[i] = "." + rdo.IncludeExtensions[i]
+		}
+	}
+
+	for i := 0; i < len(rdo.ExcludeExtensions); i++ {
+		if !strings.HasPrefix(rdo.ExcludeExtensions[i], ".") {
+			rdo.ExcludeExtensions[i] = "." + rdo.ExcludeExtensions[i]
+		}
+	}
 
 	for _, ignoreGlob := range rdo.IgnoreGlobs {
 		g, err := glob.Compile(ignoreGlob)
@@ -154,6 +173,25 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 		}
 
 		if info.IsDir() {
+			return nil
+		}
+
+		extension := filepath.Ext(path)
+
+		for _, ext := range options.ExcludeExtensions {
+			if extension == ext {
+				return nil
+			}
+		}
+
+		included := false
+		for _, ext := range options.IncludeExtensions {
+			if extension == ext {
+				included = true
+			}
+		}
+
+		if !included {
 			return nil
 		}
 
