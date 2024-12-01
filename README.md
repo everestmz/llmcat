@@ -1,11 +1,16 @@
 # llmcat
 
-A command line tool and library for displaying source files and directories in a format that's easy for LLMs to consume. Think of it as `cat` but with line numbers, markdown formatting, directory support, and smart filtering built in.
+Generate outlines and partial representations of code repos in a format that's easy for LLMs to consume (and fits inside context windows!).
+
+The RepoMap feature in tools like [Aider](https://github.com/Aider-AI/aider) and [Codestory's Aide](https://github.com/codestoryai) is _awesome_. I wanted a more reusable and portable (think [Unix philosophy](http://www.catb.org/esr/writings/taoup/html/ch01s06.html)) version that I could include in my own agents and projects like [sage](https://github.com/everestmz/sage).
+
+The result is `llmcat` - a tool useful for agentic workflows where an LLM starts with a high-level view of a repository, and expands specific functions until it comes to a solution. It also works great for copying & pasting repos into ChatGPT and Claude.
 
 ## Features
 
+- Produce high-level "maps" of repos for LLMs
+- Incrementally specify functions to add to the map
 - Line numbers and markdown formatting by default
-- Optional directory tree visualization
 - Smart pagination for large files
 - Flexible file filtering with glob patterns
 - Built-in ignores for common patterns (like .git directories)
@@ -235,6 +240,11 @@ Display an entire directory:
 llmcat .
 ```
 
+Produce a map of a directory or file:
+```bash
+llmcat --outline llmcat.go
+```
+
 ### Navigation
 
 View specific portions of large files:
@@ -255,9 +265,6 @@ llmcat . --ignore "**/test/**" --ignore "**/*.tmp"
 
 # Exclude file extensions
 llmcat . --exclude-ext "log,tmp,cache"
-
-# Show directory structure
-llmcat . --tree
 ```
 
 ### Customization
@@ -273,7 +280,3 @@ llmcat main.go --line-numbers=false
 # Disable markdown formatting
 llmcat main.go --markdown=false
 ```
-
-## Why llmcat?
-
-LLMs aren't great at counting lines, or reading files that are too big. llmcat combines features found in tools like `cat` and `tree` into a single binary or library that can be embedded into AI workflows or agents.
