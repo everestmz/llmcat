@@ -6,15 +6,15 @@ GOARCHES := arm64 amd64
 CURRENT_OS := $(shell go env GOOS)
 CURRENT_ARCH := $(shell go env GOARCH)
 
-# Disable CGO
-export CGO_ENABLED=0
+# Enable CGO
+export CGO_ENABLED=1
 
 # Generate all possible OS/ARCH combinations
 TARGETS := $(foreach os,$(GOOSES),$(foreach arch,$(GOARCHES),bin/$(os)/$(arch)/llmcat))
 
 .PHONY: all clean
 
-all: $(TARGETS) bin/llmcat
+all: bin/llmcat
 
 # Pattern rule for building specific OS/ARCH combinations
 bin/%/llmcat:
