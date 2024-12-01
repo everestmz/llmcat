@@ -8,9 +8,11 @@ import (
 	"strings"
 
 	"github.com/gobwas/glob"
+	"github.com/rs/zerolog/log"
 )
 
 type RenderFileOptions struct {
+	Outline         bool   `json:"outline"`
 	OutputMarkdown  bool   `json:"output_markdown"`
 	ShowLineNumbers bool   `json:"hide_line_numbers"`
 	GutterSeparator string `json:"gutter_separator"`
@@ -174,6 +176,7 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 	err = filepath.WalkDir(dirName, func(path string, d fs.DirEntry, err error) error {
 		for _, ignoreGlob := range options.compiledIgnoreGlobs {
 			if ignoreGlob.Match(path) {
+				log.Debug().Str("file", path).Str("glob", fmt.Sprint(ignoreGlob)).Msgf("Ignored file")
 				return nil
 			}
 		}
@@ -182,6 +185,7 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 			include := false
 			for _, includeGlob := range options.compiledIncludeGlobs {
 				if includeGlob.Match(path) {
+					log.Debug().Str("file", path).Str("glob", fmt.Sprint(includeGlob)).Msgf("Included file")
 					include = true
 				}
 			}
@@ -208,15 +212,17 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 			}
 		}
 
-		included := false
-		for _, ext := range options.IncludeExtensions {
-			if extension == ext {
-				included = true
+		if len(options.IncludeExtensions) > 0 {
+			included := false
+			for _, ext := range options.IncludeExtensions {
+				if extension == ext {
+					included = true
+				}
 			}
-		}
 
-		if !included {
-			return nil
+			if !included {
+				return nil
+			}
 		}
 
 		// Check if file has execute permission using file mode bits
