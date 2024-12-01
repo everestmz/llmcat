@@ -8,26 +8,26 @@ func TestParseContextSpec(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		want    []*FileContextSpec
+		want    ContextSpec
 		wantErr bool
 	}{
 		{
 			name:  "empty input",
 			input: "",
-			want:  nil, // Change this from empty slice to nil
+			want:  ContextSpec{},
 		},
 		{
 			name:  "single file no symbols",
 			input: "main.go",
-			want: []*FileContextSpec{
-				{Filename: "main.go"},
+			want: ContextSpec{
+				"main.go": {Filename: "main.go"},
 			},
 		},
 		{
 			name:  "single file with symbols",
 			input: `main.go MyFunc AnotherFunc`,
-			want: []*FileContextSpec{
-				{
+			want: ContextSpec{
+				"main.go": {
 					Filename: "main.go",
 					Symbols:  []string{"MyFunc", "AnotherFunc"},
 				},
@@ -37,12 +37,12 @@ func TestParseContextSpec(t *testing.T) {
 			name: "multiple files with symbols",
 			input: `main.go MyFunc
 parser.go Parse ParseLine`,
-			want: []*FileContextSpec{
-				{
+			want: ContextSpec{
+				"main.go": {
 					Filename: "main.go",
 					Symbols:  []string{"MyFunc"},
 				},
-				{
+				"parser.go": {
 					Filename: "parser.go",
 					Symbols:  []string{"Parse", "ParseLine"},
 				},
@@ -52,12 +52,12 @@ parser.go Parse ParseLine`,
 			name: "quoted strings with spaces",
 			input: `"main file.go" "My Function"
 "complex parser.go" "Parse Items"`,
-			want: []*FileContextSpec{
-				{
+			want: ContextSpec{
+				"main file.go": {
 					Filename: "main file.go",
 					Symbols:  []string{"My Function"},
 				},
-				{
+				"complex parser.go": {
 					Filename: "complex parser.go",
 					Symbols:  []string{"Parse Items"},
 				},
@@ -71,10 +71,31 @@ parser.go Parse ParseLine`,
 		{
 			name:  "escaped quotes",
 			input: `main.go "Method \"quoted\" name"`,
-			want: []*FileContextSpec{
-				{
+			want: ContextSpec{
+				"main.go": {
 					Filename: "main.go",
 					Symbols:  []string{`Method "quoted" name`},
+				},
+			},
+		},
+		{
+			name: "merge symbols for same file",
+			input: `main.go Func1
+main.go Func2`,
+			want: ContextSpec{
+				"main.go": {
+					Filename: "main.go",
+					Symbols:  []string{"Func1", "Func2"},
+				},
+			},
+		},
+		{
+			name: "whole file overrides symbols",
+			input: `main.go Func1
+main.go`,
+			want: ContextSpec{
+				"main.go": {
+					Filename: "main.go",
 				},
 			},
 		},
@@ -88,21 +109,104 @@ parser.go Parse ParseLine`,
 				return
 			}
 			if !tt.wantErr {
-				if (got == nil) != (tt.want == nil) {
-					t.Errorf("ParseContextSpec() nil mismatch: got = %v, want = %v", got, tt.want)
-					return
-				}
 				if len(got) != len(tt.want) {
-					t.Errorf("ParseContextSpec() length mismatch: got = %v, want = %v", got, tt.want)
+					t.Errorf("ParseContextSpec() returned %d items, want %d", len(got), len(tt.want))
 					return
 				}
-				for i := range got {
-					if got[i].Filename != tt.want[i].Filename {
-						t.Errorf("ParseContextSpec() filename mismatch at index %d: got = %q, want = %q", i, got[i].Filename, tt.want[i].Filename)
+				for filename, wantSpec := range tt.want {
+					gotSpec, exists := got[filename]
+					if !exists {
+						t.Errorf("ParseContextSpec() missing expected file %q", filename)
+						continue
 					}
-					if !slicesEqual(got[i].Symbols, tt.want[i].Symbols) {
-						t.Errorf("ParseContextSpec() symbols mismatch at index %d: got = %v, want = %v", i, got[i].Symbols, tt.want[i].Symbols)
+					if gotSpec.Filename != wantSpec.Filename {
+						t.Errorf("ParseContextSpec() for file %q got filename = %q, want %q",
+							filename, gotSpec.Filename, wantSpec.Filename)
 					}
+					if !slicesEqual(gotSpec.Symbols, wantSpec.Symbols) {
+						t.Errorf("ParseContextSpec() for file %q got symbols = %v, want %v",
+							filename, gotSpec.Symbols, wantSpec.Symbols)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestMergeContextSpecs(t *testing.T) {
+	tests := []struct {
+		name  string
+		specs []*FileContextSpec
+		want  ContextSpec
+	}{
+		{
+			name:  "empty input",
+			specs: nil,
+			want:  ContextSpec{},
+		},
+		{
+			name: "merge file with symbols",
+			specs: []*FileContextSpec{
+				{Filename: "main.go", Symbols: []string{"Func1"}},
+				{Filename: "main.go", Symbols: []string{"Func2"}},
+			},
+			want: ContextSpec{
+				"main.go": {Filename: "main.go", Symbols: []string{"Func1", "Func2"}},
+			},
+		},
+		{
+			name: "whole file overrides symbols",
+			specs: []*FileContextSpec{
+				{Filename: "main.go", Symbols: []string{"Func1"}},
+				{Filename: "main.go"},
+			},
+			want: ContextSpec{
+				"main.go": {Filename: "main.go"},
+			},
+		},
+		{
+			name: "symbols after whole file are ignored",
+			specs: []*FileContextSpec{
+				{Filename: "main.go"},
+				{Filename: "main.go", Symbols: []string{"Func1"}},
+			},
+			want: ContextSpec{
+				"main.go": {Filename: "main.go"},
+			},
+		},
+		{
+			name: "multiple distinct files",
+			specs: []*FileContextSpec{
+				{Filename: "main.go", Symbols: []string{"Func1"}},
+				{Filename: "parser.go", Symbols: []string{"Parse"}},
+			},
+			want: ContextSpec{
+				"main.go":   {Filename: "main.go", Symbols: []string{"Func1"}},
+				"parser.go": {Filename: "parser.go", Symbols: []string{"Parse"}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := MergeContextSpecs(tt.specs...)
+			if len(got) != len(tt.want) {
+				t.Errorf("MergeContextSpecs() returned %d items, want %d", len(got), len(tt.want))
+				return
+			}
+			for filename, wantSpec := range tt.want {
+				gotSpec, exists := got[filename]
+				if !exists {
+					t.Errorf("MergeContextSpecs() missing expected file %q", filename)
+					continue
+				}
+				if gotSpec.Filename != wantSpec.Filename {
+					t.Errorf("MergeContextSpecs() for file %q got filename = %q, want %q",
+						filename, gotSpec.Filename, wantSpec.Filename)
+				}
+				if !slicesEqual(gotSpec.Symbols, wantSpec.Symbols) {
+					t.Errorf("MergeContextSpecs() for file %q got symbols = %v, want %v",
+						filename, gotSpec.Symbols, wantSpec.Symbols)
 				}
 			}
 		})

@@ -6,15 +6,15 @@ import (
 	"strings"
 )
 
+type ContextSpec map[string]*FileContextSpec
+
 type FileContextSpec struct {
 	Filename string
 	Symbols  []string
 }
 
-func MergeContextSpecs(specs ...*FileContextSpec) []*FileContextSpec {
+func MergeContextSpecs(specs ...*FileContextSpec) ContextSpec {
 	filenameToSpec := map[string]*FileContextSpec{}
-
-	var out []*FileContextSpec
 
 	for _, spec := range specs {
 		if len(spec.Symbols) == 0 {
@@ -34,14 +34,10 @@ func MergeContextSpecs(specs ...*FileContextSpec) []*FileContextSpec {
 		}
 	}
 
-	for _, spec := range filenameToSpec {
-		out = append(out, spec)
-	}
-
-	return out
+	return filenameToSpec
 }
 
-func ParseContextSpec(contextDefinition string) ([]*FileContextSpec, error) {
+func ParseContextSpec(contextDefinition string) (ContextSpec, error) {
 	scanner := bufio.NewScanner(strings.NewReader(contextDefinition))
 	scanner.Split(bufio.ScanLines)
 
