@@ -19,6 +19,10 @@ The result is `llmcat` - a tool useful for agentic workflows where an LLM starts
 
 ## Installation
 
+Grab a binary from [the latest release](https://github.com/everestmz/llmcat/releases).
+
+Via Go:
+
 ```console
 go install github.com/everestmz/llmcat/cmd/llmcat@latest
 ```
@@ -28,7 +32,7 @@ Or clone and build from source:
 ```console
 git clone https://github.com/everestmz/llmcat.git
 cd llmcat
-make
+make install
 ```
 
 ## Usage

@@ -9,6 +9,10 @@ CURRENT_ARCH := $(shell go env GOARCH)
 # Enable CGO
 export CGO_ENABLED=1
 
+# Set install location
+PREFIX ?= /usr/local
+INSTALL_PATH = $(PREFIX)/bin
+
 # Generate all possible OS/ARCH combinations
 TARGETS := $(foreach os,$(GOOSES),$(foreach arch,$(GOARCHES),bin/$(os)/$(arch)/llmcat))
 
@@ -28,6 +32,11 @@ bin/llmcat: bin/$(CURRENT_OS)/$(CURRENT_ARCH)/llmcat
 	@mkdir -p bin
 	@ln -sf $(CURRENT_OS)/$(CURRENT_ARCH)/llmcat $@
 	@chmod +x $@
+
+install: bin/llmcat
+	@echo "Installing to $(INSTALL_PATH)/llmcat..."
+	@mkdir -p $(INSTALL_PATH)
+	@install -m 755 bin/llmcat $(INSTALL_PATH)/llmcat
 
 clean:
 	@echo "Cleaning up..."
