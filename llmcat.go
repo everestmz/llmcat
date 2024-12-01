@@ -1,12 +1,15 @@
 package llmcat
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/everestmz/llmcat/treesym"
+	"github.com/everestmz/llmcat/treesym/language"
 	"github.com/gobwas/glob"
 	"github.com/rs/zerolog/log"
 )
@@ -35,7 +38,7 @@ func (ro *RenderFileOptions) SetDefaults() {
 	}
 }
 
-func RenderFile(filename, text string, options *RenderFileOptions) string {
+func RenderFile(filename, text string, options *RenderFileOptions) (string, error) {
 	outputLines := []string{}
 
 	options.SetDefaults()
@@ -81,14 +84,72 @@ func RenderFile(filename, text string, options *RenderFileOptions) string {
 		outputLines = append(outputLines, marker)
 	}
 
-	for i, line := range lines[startIndex:endIndex] {
+	addLineInfo := func(line string, offset, lineIndex int) string {
 		if options.ShowLineNumbers {
-			lineNum := i + startIndex + 1
+			lineNum := offset + lineIndex
 			padding := strings.Repeat(" ", gutterWidth-len(fmt.Sprint(lineNum)))
 			line = fmt.Sprintf("%d%s%s %s", lineNum, padding, options.GutterSeparator, line)
 		}
 
-		outputLines = append(outputLines, line)
+		return line
+	}
+
+	chunks, err := treesym.GetSymbols(context.TODO(), &treesym.SourceFile{
+		Path: filename,
+		Text: text,
+	})
+	if err == language.ErrUnsupportedExtension {
+		// Just print all the lines within the range
+		for lineIndex, line := range lines[startIndex:endIndex] {
+			lineNum := lineIndex + 1
+			outputLines = append(outputLines, addLineInfo(line, startIndex, lineNum))
+		}
+	} else if err != nil {
+		return "", err
+	} else {
+		for _, chunk := range chunks.GetOutline() {
+			// Tree-sitter rows are 0-indexed, our line numbers are 1-indexed
+			startLine := chunk.StartRow + 1
+			endLine := chunk.EndRow + 1
+
+			if endLine < startIndex {
+				continue
+			}
+
+			if startLine > endIndex {
+				continue
+			}
+
+			// This chunk is at least partially in the range
+
+			if options.Outline && chunk.ShouldOmit {
+				// Specify how many lines have been omitted (it may not be the size of the chunk,
+				// if some of it is on the next or previous page!)
+				var headLinesAlreadyOmitted, tailLinesAlreadyOmitted int
+				if startLine < startIndex {
+					headLinesAlreadyOmitted = startIndex - startLine
+				}
+				if endLine > endIndex {
+					tailLinesAlreadyOmitted = endLine - endIndex
+				}
+
+				// The line numbers are inclusive - so add one
+				omittedLine := fmt.Sprintf("... (%d lines omitted) ...", (endLine-startLine+1)-headLinesAlreadyOmitted-tailLinesAlreadyOmitted)
+
+				if options.ShowLineNumbers {
+					padding := strings.Repeat(" ", gutterWidth)
+					omittedLine = fmt.Sprintf("%s%s %s", padding, options.GutterSeparator, omittedLine)
+				}
+
+				outputLines = append(outputLines, omittedLine)
+			} else {
+				lines := strings.Split(chunk.Content, "\n")
+
+				for lineNum, line := range lines {
+					outputLines = append(outputLines, addLineInfo(line, startLine, lineNum))
+				}
+			}
+		}
 	}
 
 	if endIndex < totalLines {
@@ -103,7 +164,7 @@ func RenderFile(filename, text string, options *RenderFileOptions) string {
 		outputLines = append(outputLines, "```")
 	}
 
-	return strings.Join(outputLines, "\n")
+	return strings.Join(outputLines, "\n"), nil
 }
 
 // We should probably allow for glob-based ignores, extension-based ignores, and some other dir-based filters
@@ -239,7 +300,12 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 		if err != nil {
 			return err
 		}
-		files = append(files, RenderFile(relPath, string(text), options.FileOptions))
+
+		rendered, err := RenderFile(relPath, string(text), options.FileOptions)
+		if err != nil {
+			return err
+		}
+		files = append(files, rendered)
 
 		return nil
 	})

@@ -1,8 +1,12 @@
 package language
 
-import "fmt"
+import (
+	"errors"
+)
 
 type Language string
+
+var ErrUnsupportedExtension = errors.New("unsupported file extension")
 
 const (
 	Python     Language = "python"
@@ -40,6 +44,6 @@ func GetLanguage(extension string) (Language, error) {
 	case ".c":
 		return C, nil
 	default:
-		return "", fmt.Errorf("unsupported file extension: %s", extension)
+		return "", ErrUnsupportedExtension
 	}
 }

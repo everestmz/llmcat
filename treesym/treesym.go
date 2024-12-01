@@ -23,6 +23,7 @@ type Node struct {
 	Summary         string
 	FullText        string
 	Kind            string
+	Documentation   string
 }
 
 type Symbols struct {
@@ -36,6 +37,18 @@ type OutlineChunk struct {
 	// 0-indexed, like tree-sitter rows are
 	StartRow int
 	EndRow   int
+
+	hasLines bool
+}
+
+func (oc *OutlineChunk) AddLine(line string) {
+	if oc.hasLines {
+		oc.Content += "\n"
+	} else {
+		oc.hasLines = true
+	}
+
+	oc.Content += line
 }
 
 type ProcessedSourceFile struct {
@@ -47,14 +60,14 @@ type ProcessedSourceFile struct {
 // a list of chunks that represent contiguous blocks of code. If a chunk should
 // be omitted for summarization, ShouldOmit is true, but the chunk is still
 // returned, so that omitted items can be easily expanded
-func (psf *ProcessedSourceFile) GetOutline() []OutlineChunk {
+func (psf *ProcessedSourceFile) GetOutline() []*OutlineChunk {
 	lines := strings.Split(psf.Text, "\n")
 
 	var getLine = func(lineNum int) string {
-		return lines[lineNum] + "\n"
+		return lines[lineNum]
 	}
 
-	var summaryChunks []OutlineChunk
+	var summaryChunks []*OutlineChunk
 
 	// In this first pass, we go through and create chunks only for omitted sections
 	// We're also extending summaries to full line chunks, which are easier to manage
@@ -68,21 +81,21 @@ func (psf *ProcessedSourceFile) GetOutline() []OutlineChunk {
 		startLine := int(def.SummaryEndPoint.Row) + 1
 		endLine := int(def.EndPoint.Row)
 
-		currentChunk := OutlineChunk{
+		currentChunk := &OutlineChunk{
 			ShouldOmit: true,
 			StartRow:   startLine,
 			EndRow:     endLine,
 		}
 
 		for currentLine := startLine; currentLine <= endLine; currentLine++ {
-			currentChunk.Content += getLine(currentLine)
+			currentChunk.AddLine(getLine(currentLine))
 		}
 		summaryChunks = append(summaryChunks, currentChunk)
 	}
 
-	var chunks []OutlineChunk
+	var chunks []*OutlineChunk
 
-	currentChunk := OutlineChunk{
+	currentChunk := &OutlineChunk{
 		StartRow: 0,
 	}
 	var nextSummaryIdx = -1
@@ -92,13 +105,13 @@ func (psf *ProcessedSourceFile) GetOutline() []OutlineChunk {
 	// Tree-sitter rows are 0-indexed
 	for currentLine := 0; currentLine < len(lines); currentLine++ {
 		if nextSummaryIdx == -1 {
-			currentChunk.Content += getLine(currentLine)
+			currentChunk.AddLine(getLine(currentLine))
 			continue
 		}
 
 		nextSummary := summaryChunks[nextSummaryIdx]
 		if currentLine != nextSummary.StartRow {
-			currentChunk.Content += getLine(currentLine)
+			currentChunk.AddLine(getLine(currentLine))
 			continue
 		}
 
@@ -113,7 +126,7 @@ func (psf *ProcessedSourceFile) GetOutline() []OutlineChunk {
 		// +1 will bring us to the correct next line
 		currentLine = nextSummary.EndRow
 
-		currentChunk = OutlineChunk{
+		currentChunk = &OutlineChunk{
 			StartRow: currentLine + 1,
 		}
 
@@ -177,19 +190,31 @@ func GetSymbols(ctx context.Context, file *SourceFile) (*ProcessedSourceFile, er
 
 		m = qc.FilterPredicates(m, []byte(file.Text))
 
-		if len(m.Captures) != 2 {
-			// XXX: not sure if this will always be 2. But for now, I think it is.
-			return nil, fmt.Errorf("Got unexpected number of captures (%d) id:%d pattern_index:%d", len(m.Captures), m.ID, m.PatternIndex)
-		}
-
+		var docs string
 		var nameCapture sitter.QueryCapture
 		var contentCapture sitter.QueryCapture
+
+		var numNonDocCaptures int
 		for _, cap := range m.Captures {
-			if strings.HasPrefix(q.CaptureNameForId(cap.Index), "name.") {
+			captureName := q.CaptureNameForId(cap.Index)
+			if strings.HasPrefix(captureName, "name.") {
 				nameCapture = cap
+				numNonDocCaptures++
+			} else if captureName == "doc" {
+				docs = cap.Node.Content([]byte(file.Text))
 			} else {
 				contentCapture = cap
+				numNonDocCaptures++
 			}
+		}
+
+		if numNonDocCaptures != 2 {
+			// XXX: not sure if this will always be 2. But for now, I think it is.
+			var captureNames []string
+			for _, cap := range m.Captures {
+				captureNames = append(captureNames, q.CaptureNameForId(cap.Index))
+			}
+			return nil, fmt.Errorf("Got unexpected number of captures (%d) id:%d pattern_index:%d captures: %s", len(m.Captures), m.ID, m.PatternIndex, strings.Join(captureNames, ","))
 		}
 
 		captureName := q.CaptureNameForId(contentCapture.Index)
@@ -206,6 +231,7 @@ func GetSymbols(ctx context.Context, file *SourceFile) (*ProcessedSourceFile, er
 			Summary:         contentCapture.Node.Content([]byte(file.Text)),
 			Kind:            captureSubType,
 			SummaryEndPoint: contentCapture.Node.EndPoint(),
+			Documentation:   docs,
 		}
 		node.FullText = node.Summary
 

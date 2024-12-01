@@ -46,7 +46,10 @@ func main() {
 					if err != nil {
 						return fmt.Errorf("error reading file: %v", err)
 					}
-					output := llmcat.RenderFile(path, string(content), &options)
+					output, err := llmcat.RenderFile(path, string(content), &options)
+					if err != nil {
+						return fmt.Errorf("error rendering file: %w", err)
+					}
 					fmt.Println(output)
 				}
 			}
@@ -69,6 +72,7 @@ func main() {
 	flags.BoolVarP(&options.OutputMarkdown, "markdown", "m", true, "output in markdown format")
 	flags.BoolVarP(&options.ShowLineNumbers, "line-numbers", "n", true, "show line numbers")
 	flags.StringVarP(&options.GutterSeparator, "separator", "s", "|", "gutter separator character")
+	flags.BoolVar(&options.Outline, "outline", false, "produce an outline for supported source files using tree-sitter")
 
 	// Pagination flags
 	flags.IntVarP(&options.PageSize, "page-size", "p", 10000, "number of lines to show (0 = show all)")
