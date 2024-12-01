@@ -15,10 +15,14 @@ jobs:
         include:
           - os: ubuntu-latest
             targets: linux
-            setup_cmd: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+            setup: |
+              sudo apt-get update
+              sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross
+              echo "CC_ARM64=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+              echo "CXX_ARM64=aarch64-linux-gnu-g++" >> $GITHUB_ENV
           - os: macos-latest
             targets: darwin
-            setup_cmd: ""
+            setup: ""
     
     runs-on: ${{ matrix.os }}
     steps:
@@ -30,14 +34,21 @@ jobs:
           go-version: '1.21'
       
       - name: Setup cross-compilation
-        run: ${{ matrix.setup_cmd }}
+        run: ${{ matrix.setup }}
       
       - name: Build binaries
         run: |
           OS=${{ matrix.targets }}
-          # Build for both architectures using make
+          
+          # Build amd64
           make bin/$OS/amd64/llmcat
-          make bin/$OS/arm64/llmcat
+          
+          # Build arm64 (with cross-compiler for Linux)
+          if [ "$OS" = "linux" ]; then
+            CC=$CC_ARM64 CXX=$CXX_ARM64 make bin/$OS/arm64/llmcat
+          else
+            make bin/$OS/arm64/llmcat
+          fi
           
           # Rename for release
           cd bin

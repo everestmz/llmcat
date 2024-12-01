@@ -20,7 +20,7 @@ all: bin/llmcat
 bin/%/llmcat:
 	@echo "Building for $(firstword $(subst /, ,$*))/$(word 2,$(subst /, ,$*))..."
 	@mkdir -p $(dir $@)
-	GOOS=$(firstword $(subst /, ,$*)) GOARCH=$(word 2,$(subst /, ,$*)) go build -o $@ ./cmd/llmcat
+	CGO_ENABLED=1 GOOS=$(firstword $(subst /, ,$*)) GOARCH=$(word 2,$(subst /, ,$*)) go build -o $@ ./cmd/llmcat
 
 # Rule for building current platform and creating symlink
 bin/llmcat: bin/$(CURRENT_OS)/$(CURRENT_ARCH)/llmcat
