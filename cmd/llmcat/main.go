@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/everestmz/llmcat"
+	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
 
@@ -56,6 +57,13 @@ func main() {
 
 	// Add flags
 	flags := rootCmd.Flags()
+
+	// Dev flags
+	debug := flags.Bool("debug", false, "Set this flag to enable debug logs")
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	if *debug {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	}
 
 	// File rendering flags
 	flags.BoolVarP(&options.OutputMarkdown, "markdown", "m", true, "output in markdown format")
