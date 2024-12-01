@@ -32,6 +32,8 @@ type Symbols struct {
 }
 
 type OutlineChunk struct {
+	// Name only set if item is omitted, since otherwise chunk could be bigger than a single symbol
+	Name       string
 	Content    string
 	ShouldOmit bool
 	// 0-indexed, like tree-sitter rows are
@@ -85,6 +87,7 @@ func (psf *ProcessedSourceFile) GetOutline() []*OutlineChunk {
 			ShouldOmit: true,
 			StartRow:   startLine,
 			EndRow:     endLine,
+			Name:       def.Name,
 		}
 
 		for currentLine := startLine; currentLine <= endLine; currentLine++ {

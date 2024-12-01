@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/everestmz/llmcat"
+	"github.com/everestmz/llmcat/ctxspec"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -20,6 +21,18 @@ func main() {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
+
+			contextSpecLines, err := cmd.Flags().GetStringSlice("expand")
+			if err != nil {
+				return err
+			}
+
+			contextSpec, err := ctxspec.ParseContextSpec(strings.Join(contextSpecLines, "\n"))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			dirOptions.ContextSpec = contextSpec
 
 			dirOptions.FileOptions = &options
 
@@ -73,6 +86,7 @@ func main() {
 	flags.BoolVarP(&options.ShowLineNumbers, "line-numbers", "n", true, "show line numbers")
 	flags.StringVarP(&options.GutterSeparator, "separator", "s", "|", "gutter separator character")
 	flags.BoolVar(&options.Outline, "outline", false, "produce an outline for supported source files using tree-sitter")
+	flags.StringArrayVar(&options.ExpandSymbols, "symbols", nil, "specify symbols to expand when showing an outline")
 
 	// Pagination flags
 	flags.IntVarP(&options.PageSize, "page-size", "p", 10000, "number of lines to show (0 = show all)")
@@ -84,7 +98,8 @@ func main() {
 	flags.StringSliceVar(&dirOptions.IncludeGlobs, "include", nil, "glob patterns to include")
 	flags.StringSliceVar(&dirOptions.ExcludeExtensions, "exclude-ext", nil, "comma-separated list of file extensions to exclude")
 	flags.StringSliceVar(&dirOptions.IncludeExtensions, "ext", nil, "comma-separated list of file extensions to include")
-	// flags.BoolVarP(&dirOptions.ShowTree, "tree", "t", false, "show directory tree")
+
+	flags.StringSliceP("expand", "e", nil, "symbols or files to expand when showing an outline, in ctxspec format")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/everestmz/llmcat/ctxspec"
 	"github.com/everestmz/llmcat/treesym"
 	"github.com/everestmz/llmcat/treesym/language"
 	"github.com/gobwas/glob"
@@ -15,13 +16,22 @@ import (
 )
 
 type RenderFileOptions struct {
-	Outline         bool   `json:"outline"`
-	OutputMarkdown  bool   `json:"output_markdown"`
-	ShowLineNumbers bool   `json:"hide_line_numbers"`
-	GutterSeparator string `json:"gutter_separator"`
-	PageSize        int    `json:"page_size"`
-	StartLine       int    `json:"start_line"`
-	ShowPageInfo    bool   `json:"show_page_info"`
+	Outline         bool     `json:"outline"`
+	OutputMarkdown  bool     `json:"output_markdown"`
+	ShowLineNumbers bool     `json:"hide_line_numbers"`
+	GutterSeparator string   `json:"gutter_separator"`
+	PageSize        int      `json:"page_size"`
+	StartLine       int      `json:"start_line"`
+	ShowPageInfo    bool     `json:"show_page_info"`
+	ExpandSymbols   []string `json:"expand_symbols"`
+}
+
+// TODO: split this up so we produce another type which contains
+// ExpandSymbols - they're not a generic input, they're specific to a file
+func (ro *RenderFileOptions) Copy() *RenderFileOptions {
+	new := *ro
+
+	return &new
 }
 
 func (ro *RenderFileOptions) SetDefaults() {
@@ -94,6 +104,16 @@ func RenderFile(filename, text string, options *RenderFileOptions) (string, erro
 		return line
 	}
 
+	shouldExpandChunk := func(chunk *treesym.OutlineChunk) bool {
+		for _, symbolName := range options.ExpandSymbols {
+			if chunk.Name == symbolName {
+				return true
+			}
+		}
+
+		return false
+	}
+
 	chunks, err := treesym.GetSymbols(context.TODO(), &treesym.SourceFile{
 		Path: filename,
 		Text: text,
@@ -122,7 +142,7 @@ func RenderFile(filename, text string, options *RenderFileOptions) (string, erro
 
 			// This chunk is at least partially in the range
 
-			if options.Outline && chunk.ShouldOmit {
+			if options.Outline && chunk.ShouldOmit && !shouldExpandChunk(chunk) {
 				// Specify how many lines have been omitted (it may not be the size of the chunk,
 				// if some of it is on the next or previous page!)
 				var headLinesAlreadyOmitted, tailLinesAlreadyOmitted int
@@ -169,11 +189,12 @@ func RenderFile(filename, text string, options *RenderFileOptions) (string, erro
 
 // We should probably allow for glob-based ignores, extension-based ignores, and some other dir-based filters
 type RenderDirectoryOptions struct {
-	FileOptions       *RenderFileOptions `json:"file_options"`
-	IgnoreGlobs       []string           `json:"ignore_globs"`
-	IncludeGlobs      []string           `json:"include_globs"`
-	IncludeExtensions []string           `json:"include_extensions"`
-	ExcludeExtensions []string           `json:"exclude_extensions"`
+	FileOptions       *RenderFileOptions  `json:"file_options"`
+	IgnoreGlobs       []string            `json:"ignore_globs"`
+	IncludeGlobs      []string            `json:"include_globs"`
+	IncludeExtensions []string            `json:"include_extensions"`
+	ExcludeExtensions []string            `json:"exclude_extensions"`
+	ContextSpec       ctxspec.ContextSpec `json:"context_spec"`
 
 	compiledIgnoreGlobs  []glob.Glob
 	compiledIncludeGlobs []glob.Glob
@@ -301,7 +322,17 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 			return err
 		}
 
-		rendered, err := RenderFile(relPath, string(text), options.FileOptions)
+		fileOpts := options.FileOptions
+		if spec, ok := options.ContextSpec[relPath]; ok {
+			fileOpts = fileOpts.Copy()
+			if len(spec.Symbols) > 0 {
+				fileOpts.ExpandSymbols = spec.Symbols
+			} else {
+				// Just show everything
+				fileOpts.Outline = false
+			}
+		}
+		rendered, err := RenderFile(relPath, string(text), fileOpts)
 		if err != nil {
 			return err
 		}

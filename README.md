@@ -244,9 +244,14 @@ Display an entire directory:
 llmcat .
 ```
 
-Produce a map of a directory or file:
+Display a map of a repo or file:
 ```bash
-llmcat --outline llmcat.go
+llmcat --outline .
+```
+
+Display a map of the repo, but with the `RenderDirectory` function expanded:
+```bash
+llmcat --outline --expand "llmcat.go RenderDirectory" .
 ```
 
 ### Navigation
