@@ -292,12 +292,12 @@ func seekNewLine(text string, startIndex uint32, maxSeekLength uint32) uint32 {
 	for i := uint32(0); i < maxSeekLength; i++ {
 		index := startIndex + i
 		if index >= uint32(len(text)) {
-			return index
+			return uint32(len(text))
 		}
 		if text[index] == '\n' {
 			return index
 		}
 	}
 
-	return min(maxSeekLength, uint32(len(text))-1)
+	return min(startIndex+maxSeekLength, uint32(len(text)))
 }
