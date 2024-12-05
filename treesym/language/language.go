@@ -26,7 +26,10 @@ func GetLanguage(extension string) (Language, error) {
 	case ".py":
 		return Python, nil
 	case ".js":
-		return Javascript, nil
+		fallthrough
+		// NOTE: we're doing this because the javascript tags are being weird, 
+		// maybe because the JS tree sitter grammar is out of date, or the tags just don't work
+		// return Javascript, nil
 	case ".ts":
 		return Typescript, nil
 	case ".jsx", ".tsx":
