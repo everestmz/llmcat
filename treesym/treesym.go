@@ -156,7 +156,7 @@ func GetSymbols(ctx context.Context, file *SourceFile) (*ProcessedSourceFile, er
 
 	tree, err := parser.ParseCtx(ctx, nil, []byte(file.Text))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parsing code: %w", err)
 	}
 
 	ext := filepath.Ext(file.Path)
@@ -168,12 +168,12 @@ func GetSymbols(ctx context.Context, file *SourceFile) (*ProcessedSourceFile, er
 
 	tagsQuery, err := tags.GetTagsQuery(lang)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("running query: %w", err)
 	}
 
 	q, err := sitter.NewQuery([]byte(tagsQuery), tsLang)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating query: %w", err)
 	}
 
 	qc := sitter.NewQueryCursor()

@@ -334,7 +334,7 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 		}
 		rendered, err := RenderFile(relPath, string(text), fileOpts)
 		if err != nil {
-			return err
+			return fmt.Errorf("error rendering file %s: %w", relPath, err)
 		}
 		files = append(files, rendered)
 

@@ -51,7 +51,7 @@ func main() {
 				if fileInfo.IsDir() {
 					output, err := llmcat.RenderDirectory(path, &dirOptions)
 					if err != nil {
-						return fmt.Errorf("error processing directory: %v", err)
+						return fmt.Errorf("error processing directory (%s): %v", path, err)
 					}
 					fmt.Println(output)
 				} else {
