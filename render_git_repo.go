@@ -21,7 +21,7 @@ func RenderGitRepo(url string, options *RenderDirectoryOptions) (string, error) 
 
 	repoDir := filepath.Join(tempDir, "src")
 
-	cloneCommand := exec.Command(gitBinary, "clone", url, repoDir)
+	cloneCommand := exec.Command(gitBinary, "clone", "--depth", "1", url, repoDir)
 	out, err := cloneCommand.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf(string(out))
