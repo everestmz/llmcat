@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/everestmz/llmcat/ctxspec"
+	"github.com/everestmz/llmcat/git"
 	"github.com/everestmz/llmcat/treesym"
 	"github.com/everestmz/llmcat/treesym/language"
 	"github.com/gobwas/glob"
@@ -242,7 +243,7 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 		return "", err
 	}
 
-	err = filepath.WalkDir(dirName, func(path string, d fs.DirEntry, err error) error {
+	walkFilesFunc := func(path string, info os.FileInfo, err error) error {
 		for _, ignoreGlob := range options.compiledIgnoreGlobs {
 			if ignoreGlob.Match(path) {
 				log.Debug().Str("file", path).Str("glob", fmt.Sprint(ignoreGlob)).Msgf("Ignored file")
@@ -262,11 +263,6 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 			if !include {
 				return nil
 			}
-		}
-
-		info, err := d.Info()
-		if err != nil {
-			return err
 		}
 
 		if info.IsDir() {
@@ -297,9 +293,12 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 			return err
 		}
 
-		relPath, err := filepath.Rel(dirName, path)
-		if err != nil {
-			return err
+		relPath := path
+		if filepath.IsAbs(path) {
+			relPath, err = filepath.Rel(dirName, path)
+			if err != nil {
+				return err
+			}
 		}
 
 		fileOpts := options.FileOptions
@@ -319,7 +318,41 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 		files = append(files, rendered)
 
 		return nil
-	})
+	}
+
+	repoRoot, isGitRepo := git.FindRepoRoot(".")
+
+	if isGitRepo {
+		repo, err := git.NewRepo(repoRoot)
+		if err != nil {
+			return "", err
+		}
+
+		err = repo.LsFilesFunc(func(f *git.File) error {
+			info, err := os.Stat(f.Name)
+			if err != nil {
+				return err
+			}
+
+			return walkFilesFunc(f.Name, info, nil)
+		}, &git.LsFilesOptions{
+			// TODO: maybe we make this an option the user can pass in?
+			IncludeUntrackedFiles: true,
+		})
+
+		if err != nil {
+			return "", err
+		}
+	} else {
+		err = filepath.WalkDir(dirName, func(path string, d fs.DirEntry, err error) error {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+
+			return walkFilesFunc(path, info, err)
+		})
+	}
 
 	if err != nil {
 		return "", err
