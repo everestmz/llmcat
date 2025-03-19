@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/filemode"
@@ -66,12 +67,14 @@ func NewRepo(path string) (*Repo, error) {
 	}
 
 	return &Repo{
-		repo: repo,
+		repo:     repo,
+		repoRoot: root,
 	}, nil
 }
 
 type Repo struct {
-	repo *git.Repository
+	repo     *git.Repository
+	repoRoot string
 }
 
 func (r *Repo) Status() (git.Status, error) {
@@ -92,10 +95,10 @@ type File struct {
 	Mode filemode.FileMode
 }
 
-func (r *Repo) LsFiles(options *LsFilesOptions) ([]string, error) {
+func (r *Repo) LsFiles(path string, options *LsFilesOptions) ([]string, error) {
 	var files []string
 
-	err := r.LsFilesFunc(func(f *File) error {
+	err := r.LsFilesFunc(path, func(f *File) error {
 		files = append(files, f.Name)
 		return nil
 	}, options)
@@ -103,7 +106,7 @@ func (r *Repo) LsFiles(options *LsFilesOptions) ([]string, error) {
 	return files, err
 }
 
-func (r *Repo) LsFilesFunc(fn func(f *File) error, options *LsFilesOptions) error {
+func (r *Repo) LsFilesFunc(path string, fn func(f *File) error, options *LsFilesOptions) error {
 	head, err := r.repo.Head()
 	if err != nil {
 		return err
@@ -119,9 +122,28 @@ func (r *Repo) LsFilesFunc(fn func(f *File) error, options *LsFilesOptions) erro
 		return err
 	}
 
+	path = filepath.Clean(path)
+	if filepath.IsAbs(path) {
+		path, err = filepath.Rel(r.repoRoot, path)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Git doesn't like these
+	path = strings.TrimPrefix(path, "./")
+	path = strings.TrimPrefix(path, ".")
+
+	if path != "" {
+		tree, err = tree.Tree(path)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = tree.Files().ForEach(func(f *object.File) error {
 		return fn(&File{
-			Name: f.Name,
+			Name: filepath.Join(path, f.Name),
 			Mode: f.Mode,
 		})
 	})

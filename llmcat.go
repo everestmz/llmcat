@@ -328,7 +328,12 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 			return "", err
 		}
 
-		err = repo.LsFilesFunc(func(f *git.File) error {
+		relativeToRoot, err := filepath.Rel(repoRoot, dirName)
+		if err != nil {
+			return "", err
+		}
+
+		err = repo.LsFilesFunc(relativeToRoot, func(f *git.File) error {
 			info, err := os.Stat(f.Name)
 			if err != nil {
 				return err
