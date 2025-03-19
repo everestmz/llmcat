@@ -51,6 +51,7 @@ func (ro *RenderFileOptions) SetDefaults() {
 }
 
 func RenderFile(filename, text string, options *RenderFileOptions) (string, error) {
+	log.Debug().Str("path", filename).Strs("symbols", options.ExpandSymbols).Msg("Expanding file with symbols")
 	outputLines := []string{}
 
 	options.SetDefaults()
@@ -303,12 +304,12 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 
 		fileOpts := options.FileOptions
 		if spec, ok := options.ContextSpec[relPath]; ok {
-			fileOpts = fileOpts.Copy()
+			fileOptions := fileOpts.Copy()
 			if len(spec.Symbols) > 0 {
 				fileOpts.ExpandSymbols = spec.Symbols
 			} else {
 				// Just show everything
-				fileOpts.Outline = false
+				fileOptions.Outline = false
 			}
 		}
 		rendered, err := RenderFile(relPath, string(text), fileOpts)
@@ -322,7 +323,19 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 
 	repoRoot, isGitRepo := git.FindRepoRoot(".")
 
-	if isGitRepo {
+	if options.ContextSpec != nil {
+		for path := range options.ContextSpec {
+			info, err := os.Stat(path)
+			if err != nil {
+				return "", fmt.Errorf("unable to stat file (%s) in context spec: %w", path, err)
+			}
+
+			err = walkFilesFunc(path, info, nil)
+			if err != nil {
+				return "", err
+			}
+		}
+	} else if isGitRepo {
 		repo, err := git.NewRepo(repoRoot)
 		if err != nil {
 			return "", err
