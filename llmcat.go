@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/everestmz/llmcat/ctxspec"
@@ -63,18 +64,12 @@ func RenderFile(filename, text string, options *RenderFileOptions) (string, erro
 	endIndex := totalLines
 
 	if options.PageSize > 0 {
-		endIndex = startIndex + options.PageSize
-		if endIndex > totalLines {
-			endIndex = totalLines
-		}
+		endIndex = min(startIndex+options.PageSize, totalLines)
 	}
 
 	// Validate bounds
 	if startIndex >= totalLines {
-		startIndex = totalLines - 1
-		if startIndex < 0 {
-			startIndex = 0
-		}
+		startIndex = max(totalLines-1, 0)
 		endIndex = totalLines
 	}
 
@@ -105,13 +100,7 @@ func RenderFile(filename, text string, options *RenderFileOptions) (string, erro
 	}
 
 	shouldExpandChunk := func(chunk *treesym.OutlineChunk) bool {
-		for _, symbolName := range options.ExpandSymbols {
-			if chunk.Name == symbolName {
-				return true
-			}
-		}
-
-		return false
+		return slices.Contains(options.ExpandSymbols, chunk.Name)
 	}
 
 	chunks, err := treesym.GetSymbols(context.TODO(), &treesym.SourceFile{
@@ -203,19 +192,17 @@ type RenderDirectoryOptions struct {
 func (rdo *RenderDirectoryOptions) SetDefaults() error {
 	rdo.FileOptions.SetDefaults()
 
-	rdo.IgnoreGlobs = append(rdo.IgnoreGlobs, "**/.git/**")
-
 	if rdo.IncludeExtensions != nil && rdo.ExcludeExtensions != nil {
 		return fmt.Errorf("cannot specify extensions to inlcude and exclude")
 	}
 
-	for i := 0; i < len(rdo.IncludeExtensions); i++ {
+	for i := range len(rdo.IncludeExtensions) {
 		if !strings.HasPrefix(rdo.IncludeExtensions[i], ".") {
 			rdo.IncludeExtensions[i] = "." + rdo.IncludeExtensions[i]
 		}
 	}
 
-	for i := 0; i < len(rdo.ExcludeExtensions); i++ {
+	for i := range len(rdo.ExcludeExtensions) {
 		if !strings.HasPrefix(rdo.ExcludeExtensions[i], ".") {
 			rdo.ExcludeExtensions[i] = "." + rdo.ExcludeExtensions[i]
 		}
@@ -288,21 +275,14 @@ func RenderDirectory(dirName string, options *RenderDirectoryOptions) (string, e
 
 		extension := filepath.Ext(path)
 
-		for _, ext := range options.ExcludeExtensions {
-			if extension == ext {
-				return nil
-			}
+		if slices.Contains(options.ExcludeExtensions, extension) {
+			log.Debug().Str("file", path).Msgf("Excluding because extension matches excludes")
+			return nil
 		}
 
 		if len(options.IncludeExtensions) > 0 {
-			included := false
-			for _, ext := range options.IncludeExtensions {
-				if extension == ext {
-					included = true
-				}
-			}
-
-			if !included {
+			if !slices.Contains(options.IncludeExtensions, extension) {
+				log.Debug().Str("file", path).Msgf("Excluding because extension is not included")
 				return nil
 			}
 		}
