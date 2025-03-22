@@ -109,7 +109,8 @@ func RenderFile(filename, text string, options *RenderFileOptions) (string, erro
 		Path: filename,
 		Text: text,
 	})
-	if err == language.ErrUnsupportedExtension {
+	outline := chunks.GetOutline()
+	if err == language.ErrUnsupportedExtension || len(outline) == 0 {
 		// Just print all the lines within the range
 		for lineIndex, line := range lines[startIndex:endIndex] {
 			lineNum := lineIndex + 1
@@ -118,7 +119,7 @@ func RenderFile(filename, text string, options *RenderFileOptions) (string, erro
 	} else if err != nil {
 		return "", err
 	} else {
-		for _, chunk := range chunks.GetOutline() {
+		for _, chunk := range outline {
 			// Tree-sitter rows are 0-indexed, our line numbers are 1-indexed
 			startLine := chunk.StartRow + 1
 			endLine := chunk.EndRow + 1
